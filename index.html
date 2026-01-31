@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>きさらぎ町警察 - 防犯カメラ閲覧アーカイブ</title>
+  <style>
+    body { background-color: #0d1117; color: #e6edf3; font-family: "Helvetica Neue", Arial, sans-serif; margin: 0; padding: 20px; }
+    .container { max-width: 1100px; margin: 0 auto; }
+    h1 { border-left: 6px solid #1f6feb; padding-left: 15px; font-size: 1.5em; margin-bottom: 30px; }
+
+    .map-section { background: #161b22; padding: 20px; border-radius: 12px; border: 1px solid #30363d; margin-bottom: 30px; text-align: center; }
+    .map-wrapper { position: relative; display: inline-block; max-width: 100%; border: 2px solid #30363d; border-radius: 8px; overflow: hidden; }
+    .base-map { display: block; max-width: 100%; height: auto; opacity: 0.9; }
+
+    .map-pin {
+      position: absolute; width: 34px; height: 34px; background: #238636;
+      color: white; border: 2px solid #fff; border-radius: 50%; cursor: pointer;
+      font-weight: bold; font-size: 14px; transform: translate(-50%, -50%);
+      display: flex; align-items: center; justify-content: center; box-shadow: 0 0 10px rgba(0,0,0,0.5);
+      transition: 0.2s; z-index: 10;
+    }
+    .map-pin:hover { background: #2ea043; transform: translate(-50%, -50%) scale(1.2); }
+    .map-pin.active { background: #da3633; border-color: #f85149; box-shadow: 0 0 15px #f85149; }
+
+    .gallery-section { background: #161b22; padding: 25px; border-radius: 12px; border: 1px solid #30363d; min-height: 300px; }
+    .location-title { font-size: 1.2em; color: #58a6ff; margin-bottom: 20px; border-bottom: 1px solid #30363d; padding-bottom: 10px; }
+    
+    .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; }
+
+    .camera-card { background: #0d1117; border: 1px solid #30363d; border-radius: 8px; overflow: hidden; transition: transform 0.2s; }
+    .camera-card:hover { transform: translateY(-5px); border-color: #8b949e; }
+    
+    .cam-header { background: #21262d; padding: 10px; font-family: 'Courier New', Courier, monospace; font-size: 0.8em; color: #7ee787; border-bottom: 1px solid #30363d; }
+    .cam-id { color: #f1c40f; font-weight: bold; }
+
+    .camera-card img { width: 100%; height: 180px; object-fit: cover; cursor: pointer; display: block; }
+    .cam-footer { padding: 12px; font-size: 0.85em; color: #8b949e; line-height: 1.4; }
+
+    .modal { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.95); display:none; justify-content:center; align-items:center; z-index:1000; cursor: zoom-out; }
+    .modal-content { max-width: 95%; max-height: 95%; position: relative; text-align: center; }
+    .modal-content img { max-width: 100%; max-height: 85vh; border: 2px solid #fff; border-radius: 4px; }
+    .modal-caption { color: #fff; margin-top: 15px; font-size: 1.1em; font-family: monospace; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>きさらぎ町警察：防犯カメラ監視アーカイブ</h1>
+
+    <div class="map-section">
+      <div class="map-wrapper">
+        <img src="images/main_map_compressed_page-0001.jpg" alt="捜査地図" class="base-map" onerror="this.src='https://via.placeholder.com/800x450?text=Map+Image+Not+Found'">
+        
+        <button class="map-pin" style="top: 35%; left: 3%;" onclick="loadLocation('1', this)">1</button>
+        <button class="map-pin" style="top: 11%; left: 36%;" onclick="loadLocation('2', this)">2</button>
+        <button class="map-pin" style="top: 3%; left: 81%;" onclick="loadLocation('3', this)">3</button>
+        <button class="map-pin" style="top: 42%; left: 28%;" onclick="loadLocation('4', this)">4</button>
+        <button class="map-pin" style="top: 53%; left: 52%;" onclick="loadLocation('5', this)">5</button>
+        <button class="map-pin" style="top: 50%; left: 80%;" onclick="loadLocation('6', this)">6</button>
+        <button class="map-pin" style="top: 66%; left: 13%;" onclick="loadLocation('7', this)">7</button>
+        <button class="map-pin" style="top: 83%; left: 68%;" onclick="loadLocation('8', this)">8</button>
+      </div>
+    </div>
+
+    <div class="gallery-section">
+      <div id="location-info" class="location-title">地点を選択してください</div>
+      <div id="camera-gallery" class="gallery-grid">
+        <p style="grid-column: 1/-1; text-align: center; color: #8b949e;">地図上のピンをクリックすると映像が読み込まれます。</p>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal" class="modal" onclick="closeModal()">
+    <div class="modal-content">
+      <img id="modal-img" src="">
+      <div id="modal-caption" class="modal-caption"></div>
+    </div>
+  </div>
+
+  <script src="cctv_data.js"></script>
+
+  <script>
+    if (typeof cctvData === 'undefined') {
+        alert("エラー: cctv_data.js が正しく読み込まれていません。");
+    }
+
+    function loadLocation(locId, btn) {
+      document.querySelectorAll('.map-pin').forEach(p => p.classList.remove('active'));
+      btn.classList.add('active');
+
+      const gallery = document.getElementById('camera-gallery');
+      const title = document.getElementById('location-info');
+      gallery.innerHTML = ""; 
+
+      const data = cctvData[locId];
+      if (!data || data.length === 0) {
+        title.innerText = `地点 ${locId}：記録データなし`;
+        gallery.innerHTML = '<p style="grid-column: 1/-1; text-align: center; color: #8b949e;">この地点の記録映像はサーバー上に存在しません。</p>';
+        return;
+      }
+
+      title.innerText = `地点 ${locId}：記録映像一覧（${data.length}件）`;
+
+      data.forEach(item => {
+        const card = document.createElement('div');
+        card.className = "camera-card";
+        card.innerHTML = `
+          <div class="cam-header">
+            <div>DATE: ${item.date}</div>
+            <div>TIME: ${item.time}</div>
+            <div>ID: <span class="cam-id">${item.id}</span></div>
+          </div>
+          <img src="${item.src}" loading="lazy" 
+               onerror="this.src='https://via.placeholder.com/300x200?text=Image+Not+Found'"
+               onclick="openModal('${item.src}', '${item.date} ${item.time} [ID: ${item.id}]')">
+          <div class="cam-footer">${item.memo || ""}</div>
+        `;
+        gallery.appendChild(card);
+      });
+    }
+
+    function openModal(src, caption) {
+      document.getElementById('modal').style.display = "flex";
+      document.getElementById('modal-img').src = src;
+      document.getElementById('modal-caption').innerText = caption;
+    }
+
+    function closeModal() {
+      document.getElementById('modal').style.display = "none";
+    }
+  </script>
+</body>
+</html>
